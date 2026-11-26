@@ -17,7 +17,7 @@ export const FIRST_BACKTEST_SEASON = 2019;
 export const FIRST_ODDS_SEASON = 2018;
 
 /** Povećati kad se promeni skup karakteristika ili algoritam (poništava keš backtesta). */
-export const MODEL_VERSION = 3;
+export const MODEL_VERSION = 4;
 
 /** Datum po njujorškom vremenu (tako NBA vodi raspored). */
 export function etDate(d: Date = new Date()): string {

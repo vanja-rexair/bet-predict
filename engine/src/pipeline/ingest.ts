@@ -3,6 +3,7 @@ import { getMeta, setMeta } from '../db.ts';
 import { FIRST_SEASON, FIRST_ODDS_SEASON, currentSeason } from '../config.ts';
 import { ingestSeason } from '../sources/sportsdataverse.ts';
 import { historicalOdds } from '../sources/espn.ts';
+import { ingestPbpSeason } from '../sources/pbp.ts';
 
 /** Završene sezone se preuzimaju jednom, tekuća svaki put. */
 export async function ingestAll(db: DB): Promise<void> {
@@ -12,6 +13,18 @@ export async function ingestAll(db: DB): Promise<void> {
     const r = await ingestSeason(db, s);
     console.log(`Sezona ${s - 1}/${String(s).slice(2)}:`, r ? `${r.games} mečeva, ${r.players} nastupa` : 'nema podataka');
     if (r && s < cur) setMeta(db, `ingest:${s}`, 'done');
+  }
+  await ingestPbp(db);
+}
+
+/** Zapis poen po poen (za RAPM): završene sezone jednom, tekuća za mečeve koji još nemaju deonice. */
+export async function ingestPbp(db: DB): Promise<void> {
+  const cur = currentSeason();
+  for (let s = FIRST_SEASON; s <= cur; s++) {
+    if (s < cur && getMeta(db, `pbp:${s}`) === 'done') continue;
+    const n = await ingestPbpSeason(db, s);
+    console.log(`Poen po poen ${s - 1}/${String(s).slice(2)}:`, n === null ? 'nema podataka' : `${n} novih mečeva`);
+    if (n !== null && s < cur) setMeta(db, `pbp:${s}`, 'done');
   }
 }
 

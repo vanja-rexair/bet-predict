@@ -39,6 +39,7 @@ export const DESCRIBE: Record<string, [string, string]> = {
   playerElo: ['Rejting igrača', 'Zbir rejtinga igrača koji će igrati. Svaki se menja posle svakog meča, prema tome kako tim prolazi dok je on na terenu.'],
   playerMargin: ['Razlika po rejtingu igrača', 'Rejting igrača preveden u poene, uz tempo i prednost terena.'],
   continuity: ['Uigranost', 'Koliko uobičajene rotacije je na raspolaganju.'],
+  rapm: ['RAPM sastava', 'Koliko poena na 100 napada donose igrači koji igraju, kad se uračuna sa kim i protiv koga su bili na terenu (iz zapisa poen po poen).'],
   homeSplit: ['Domaći i gostujući učinak', 'Da li je domaćin kod kuće bolji, a gost u gostima slabiji nego što im snaga kaže.'],
   leagueHca: ['Prednost terena u ligi', 'Koliko poena trenutno vredi domaći teren u celoj ligi.'],
   neutral: ['Neutralan teren', 'Kad niko nije pravi domaćin.'],

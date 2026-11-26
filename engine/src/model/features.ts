@@ -1,8 +1,9 @@
 import type { DB } from '../db.ts';
-import { FIRST_SEASON, dayDiff } from '../config.ts';
+import { FIRST_SEASON, dayDiff, etDate } from '../config.ts';
 import { team as T, km } from '../teams.ts';
 import { Elo, Glicko } from '../ml/ratings.ts';
 import { clamp, logit } from '../ml/metrics.ts';
+import { RAPM_UNKNOWN, RapmBook, weekKey } from '../ml/rapm.ts';
 
 export interface Game {
   id: number; season: number; stype: number; date: string; start: string; home: number; away: number;
@@ -35,7 +36,7 @@ export const FEATURES: [string, Group][] = [
   ['games7', 'rest'], ['load7', 'rest'],
   ['km7', 'travel'], ['tzShift', 'travel'], ['altitude', 'travel'],
   ['lineup', 'lineup'], ['missH', 'lineup'], ['missA', 'lineup'], ['missUsg', 'lineup'], ['missMin', 'lineup'], ['starGap', 'lineup'],
-  ['playerElo', 'lineup'], ['playerMargin', 'lineup'], ['continuity', 'lineup'],
+  ['playerElo', 'lineup'], ['playerMargin', 'lineup'], ['continuity', 'lineup'], ['rapm', 'lineup'],
   ['homeSplit', 'home'], ['leagueHca', 'home'], ['neutral', 'home'],
   ['progress', 'ctx'], ['playoff', 'ctx'],
 ];
@@ -58,6 +59,8 @@ interface TeamState {
 }
 export interface LineupInfo {
   str: number; miss: number; missUsg: number; missMin: number; star: number; elo: number; cont: number;
+  /** RAPM sastava: poena na 100 napada u odnosu na prosek, po očekivanim minutima. */
+  rapm: number;
   /** Igrači koji se najviše osećaju u sastavu ako ih nema. */
   out: { pid: number; min: number; impact: number; usg: number; prob: number }[];
   /** Ključni igrači i njihovi očekivani minuti. */
@@ -83,6 +86,9 @@ export class League {
   h2h = new Map<string, number[]>();
   season = 0;
   lgEff = 106; lgP3 = 0.36; lgGs = 13.5; hca = 2.6;
+  /** RAPM procene igrača poznate pre meča koji se računa (null dok nema dovoljno deonica). */
+  rapm: Map<number, number> | null = null;
+  rapmOf(pid: number): number { return this.rapm?.get(pid) ?? RAPM_UNKNOWN; }
 
   team(id: number): TeamState {
     let t = this.teams.get(id);
@@ -158,6 +164,7 @@ export class League {
     const full = strength((r) => r.em * r.rate, (r) => r.imp, REPLACEMENT);
     const str = strength((r) => r.em * r.a, (r) => r.imp, REPLACEMENT);
     const elo = strength((r) => r.em * r.a, (r) => r.r, NEWCOMER);
+    const rapm = strength((r) => r.em * r.a, (r) => this.rapmOf(r.pid), RAPM_UNKNOWN);
     const cont = rows.reduce((s, r) => s + r.em * r.a * r.rate, 0) / 240;
     let missUsg = 0, missMin = 0, star = -10;
     const out: LineupInfo['out'] = [];
@@ -170,7 +177,7 @@ export class League {
     }
     const key = rows.filter((r) => r.a > 0.5 && r.em >= 24).sort((x, y) => y.imp * y.em - x.imp * x.em).slice(0, 4).map((r) => ({ pid: r.pid, min: r.em }));
     out.sort((x, y) => y.impact * y.min - x.impact * x.min);
-    return { str, miss: Math.max(0, full - str), missUsg, missMin, star: rows.length ? star : 0, out: out.slice(0, 8), key, elo, cont };
+    return { str, miss: Math.max(0, full - str), missUsg, missMin, star: rows.length ? star : 0, out: out.slice(0, 8), key, elo, cont, rapm };
   }
 
   private schedule(teamId: number, date: string, loc: number, extra: Recent[] = []) {
@@ -228,7 +235,7 @@ export class League {
       sh.rest, sa.rest, b(sh.b2b), b(sa.b2b), b(sh.in4), b(sa.in4), b(sh.in5), b(sa.in5), sh.g7 - sa.g7, (sh.load - sa.load) / 100,
       (sh.km7 - sa.km7) / 1000, sh.tz - sa.tz, neu ? 0 : Math.max(0, T(g.home).alt - T(g.away).alt) / 1000,
       lh.str - la.str, lh.miss, la.miss, lh.missUsg - la.missUsg, (lh.missMin - la.missMin) / 48, lh.star - la.star,
-      lh.elo - la.elo, ((lh.elo - la.elo) * pace) / 100 + hca, lh.cont - la.cont,
+      lh.elo - la.elo, ((lh.elo - la.elo) * pace) / 100 + hca, lh.cont - la.cont, lh.rapm - la.rapm,
       neu ? 0 : H.homeDev - A.awayDev, hca, b(neu),
       Math.min(H.seasonGames, A.seasonGames, 60), b(g.stype !== 2),
     ]);
@@ -367,6 +374,7 @@ export function buildHistory(db: DB): { rows: Row[]; league: League } {
     m.push(r);
   }
   const league = new League();
+  const book = new RapmBook(db);
   const rows: Row[] = [];
   for (const g of games) {
     const h = tb.get(g.id)?.get(g.home), a = tb.get(g.id)?.get(g.away), ps = pb.get(g.id) ?? [];
@@ -375,9 +383,12 @@ export function buildHistory(db: DB): { rows: Row[]; league: League } {
       const pool = ps.filter((p) => p.team_id === id).map((p) => p.pid);
       return { a: new Map(pool.map((p) => [p, 1])), pool };
     };
+    league.rapm = book.at(weekKey(g.date));
     const { x, pre } = league.features(g, av(g.home), av(g.away));
     if (g.season > FIRST_SEASON) rows.push({ g, x, y: g.hs > g.as_ ? 1 : 0, margin: g.hs - g.as_, total: g.hs + g.as_, pre, hb: h, ab: a, ps });
     league.update(g, h, a, ps);
   }
+  // Za prognoze unapred: sve deonice do danas.
+  league.rapm = book.at(etDate());
   return { rows, league };
 }

@@ -121,6 +121,10 @@ export function How() {
       <Q q="Razlika poena">
         <p>Peti model ne predviđa pobednika, nego za koliko poena će domaćin dobiti ili izgubiti (na primer +4,5). Iz te razlike i uobičajenog odstupanja NBA mečeva računa se šansa za pobedu. Koristi se i za projekciju rezultata na kartici.</p>
       </Q>
+      <Q q="RAPM (procena igrača)">
+        <p>Koliko poena na 100 napada igrač donosi svom timu kad je na terenu, posle uračunavanja sa kim i protiv koga je igrao. Računa se iz zapisa poen po poen: svaki deo meča između dve izmene je jedna „deonica“ (ovih 5 protiv onih 5, toliko poena razlike na toliko napada). Iz stotina hiljada deonica izdvaja se doprinos svakog igrača.</p>
+        <p>Primer: igrač sa +5 znači da tim sa njim, u proseku, dobija 5 poena više na 100 napada nego sa prosečnim igračem na istom mestu. Procena se računa svake nedelje, samo iz mečeva odigranih pre toga, a novije deonice vrede više. Sa RAPM-om model je na istoriji pogodio 67,1% umesto 66,8%.</p>
+      </Q>
       <Q q="Spajanje modela (težine)">
         <p>Pet modela daje pet šansi. One se ne sabiraju podjednako: na ranijim mečevima se izmeri koji model je bio tačniji, i on dobija veću težinu. Težine se vide u primeru na vrhu ove strane.</p>
       </Q>

@@ -1,10 +1,13 @@
 import { openDb } from './db.ts';
-import { ingestAll, backfillOdds } from './pipeline/ingest.ts';
+import { ingestAll, ingestPbp, backfillOdds } from './pipeline/ingest.ts';
 
 const db = openDb();
 switch (process.argv[2]) {
   case 'ingest':
     await ingestAll(db);
+    break;
+  case 'pbp':
+    await ingestPbp(db);
     break;
   case 'odds':
     await backfillOdds(db);
@@ -20,6 +23,6 @@ switch (process.argv[2]) {
     break;
   }
   default:
-    console.error('Komande: ingest | odds | train | update');
+    console.error('Komande: ingest | pbp | odds | train | update');
     process.exitCode = 1;
 }

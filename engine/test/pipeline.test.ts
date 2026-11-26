@@ -75,7 +75,7 @@ test('zamor: meč narednog dana je B2B', () => {
 
 test('analiza promašaja razlikuje nesreću u šutu od greške procene', () => {
   const side = { p3: 0.36, efg: 0.54, tov: 0.13, orb: 0.25, ftr: 0.25, b2b: false, rest: 2, km7: 0, elo: 1500, off: 112, def: 110, pace: 98 };
-  const li = { str: 5, miss: 0, missUsg: 0, missMin: 0, star: 5, elo: 0, cont: 1, out: [], key: [] };
+  const li = { str: 5, miss: 0, missUsg: 0, missMin: 0, star: 5, elo: 0, cont: 1, rapm: 0, out: [], key: [] };
   const pre = { expMargin: 5, expTotal: 220, pace: 98, home: side, away: side, h: li, a: li };
   const box = (o: object) => ({ game_id: 1, team_id: 1, pts: 100, fgm: 40, fga: 88, tpm: 12, tpa: 34, ftm: 16, fta: 20, orb: 10, drb: 34, tov: 13, ast: 24, stl: 7, blk: 5, pf: 20, ...o });
   const base = { pickHome: true, pre, ps: [], homeId: 1, awayId: 2, pickName: 'Domaći', name: String };

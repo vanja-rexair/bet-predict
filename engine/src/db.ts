@@ -32,6 +32,11 @@ CREATE TABLE IF NOT EXISTS events(
   id INTEGER PRIMARY KEY AUTOINCREMENT, game_id INT, ts TEXT, type TEXT, importance INT, title TEXT, text TEXT);
 CREATE INDEX IF NOT EXISTS events_game ON events(game_id);
 CREATE TABLE IF NOT EXISTS meta(k TEXT PRIMARY KEY, v TEXT);
+-- Deonice iz zapisa poen po poen: ko je bio na terenu (5 na 5), razlika poena i broj napada.
+CREATE TABLE IF NOT EXISTS stints(game_id INT, idx INT, date TEXT, h TEXT, a TEXT, poss REAL, m INT, PRIMARY KEY(game_id, idx)) WITHOUT ROWID;
+CREATE INDEX IF NOT EXISTS stints_date ON stints(date);
+-- Izračunate RAPM procene igrača po nedeljama, da se ne računaju ponovo.
+CREATE TABLE IF NOT EXISTS rapm(k TEXT PRIMARY KEY, n INT, ratings TEXT);
 `;
 
 export type DB = DatabaseSync;

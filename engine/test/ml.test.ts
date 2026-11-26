@@ -145,3 +145,30 @@ test('preporuka: igra se samo kad je šansa bar 40% i bar 5% bolja od kvote', ()
   assert.match(dog.reason, /Autsajder/);
   assert.equal(advise(0.7, { home: 1.2, away: 5 }).play, false); // gost 30% je ispod 40%
 });
+
+test('deonice: izmene igrača prave nove deonice, a zbir razlika je konačan rezultat', async () => {
+  const { buildStints } = await import('../src/model/stints.ts');
+  const H = [1, 2, 3, 4, 5, 6], A = [11, 12, 13, 14, 15];
+  const team = new Map<number, number>([...H.map((p) => [p, 100] as [number, number]), ...A.map((p) => [p, 200] as [number, number])]);
+  const r = { home: 100, away: 200, team, starters: new Set([1, 2, 3, 4, 5, 11, 12, 13, 14, 15]) };
+  const pl = (order: number, type: string, ids: number[], hs: number, as: number, shooting = false) => ({ period: 1, order, type, ids, hs, as, shooting });
+  const list = buildStints(r, [
+    pl(1, 'Jump Shot', [1], 2, 0, true), pl(2, 'Jump Shot', [11], 2, 3, true),
+    pl(3, 'Substitution', [6, 1], 2, 3), pl(4, 'Layup', [6], 4, 3, true), pl(5, 'Jump Shot', [12], 4, 5, true),
+  ]);
+  assert.equal(list.length, 2);
+  assert.deepEqual(list[0].h.sort(), [1, 2, 3, 4, 5]);
+  assert.deepEqual(list[1].h.sort(), [2, 3, 4, 5, 6]);
+  assert.equal(list.reduce((s, x) => s + x.m, 0), 4 - 5);
+});
+
+test('RAPM: igrač sa kojim tim dobija deonice dobija veću procenu', async () => {
+  const { fitRapm } = await import('../src/ml/rapm.ts');
+  const rows = [];
+  for (let i = 0; i < 400; i++) {
+    const star = i % 2 === 0;
+    rows.push({ t: 0, h: star ? [1, 2, 3, 4, 5] : [6, 2, 3, 4, 5], a: [11, 12, 13, 14, 15], poss: 10, m: star ? 3 : -1 });
+  }
+  const r = fitRapm(rows, 0);
+  assert.ok(r.get(1)! > r.get(6)!);
+});

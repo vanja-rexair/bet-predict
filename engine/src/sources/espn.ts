@@ -5,6 +5,7 @@ import { american, noVig } from '../market.ts';
 import { espnUrl, injuryReason } from '../model/injury.ts';
 import { getJson } from './http.ts';
 import { etDate } from '../config.ts';
+import { buildStints, espnPlays, rosterOf, saveStints } from '../model/stints.ts';
 
 const SITE = 'https://site.api.espn.com/apis/site/v2/sports/basketball/nba';
 const CORE = 'https://sports.core.api.espn.com/v2/sports/basketball/leagues/nba';
@@ -106,6 +107,12 @@ export async function ingestSummary(db: DB, g: BoardGame): Promise<boolean> {
       }
     }
   });
+  // Zapis poen po poen: ko je bio na terenu, za RAPM procenu igrača.
+  const ros = Array.isArray(j.plays) && j.plays.length ? rosterOf(db, g.id) : null;
+  if (ros) {
+    const list = buildStints(ros, espnPlays(j.plays));
+    if (list.length) tx(db, () => saveStints(db, g.id, g.date, list));
+  }
   return true;
 }
 
