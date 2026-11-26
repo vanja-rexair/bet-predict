@@ -7,8 +7,11 @@ for (const k of Object.keys(localStorage)) if (k.startsWith('bp.cache.')) localS
 export const isNative = Capacitor.isNativePlatform();
 const KEY = 'bp.server';
 
-/** Adresa servisa. Na webu je to isto poreklo; na Androidu je korisnik unosi u podešavanjima. */
-const DEFAULT = isNative ? (import.meta.env.VITE_SERVER as string | undefined) ?? '' : '';
+/**
+ * Adresa servisa. Na Androidu dolazi iz VITE_SERVER, na sajtu (GitHub Pages) iz VITE_DATA,
+ * a lokalno je to isto poreklo. Korisnik je može promeniti u podešavanjima.
+ */
+const DEFAULT = ((isNative ? import.meta.env.VITE_SERVER : import.meta.env.VITE_DATA) as string | undefined) ?? '';
 export const getServer = (): string => localStorage.getItem(KEY) || DEFAULT;
 /** Budžet za klađenje u dinarima; ostaje samo na ovom uređaju. */
 export const getBudget = (): number => Number(localStorage.getItem('bp.budget')) || 10_000;
