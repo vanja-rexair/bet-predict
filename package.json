@@ -1,0 +1,29 @@
+{
+  "name": "bet-predict",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "engines": {
+    "node": ">=24"
+  },
+  "workspaces": [
+    "engine",
+    "web"
+  ],
+  "scripts": {
+    "bootstrap": "npm run ingest && npm run odds && npm run train && npm run update && npm run build",
+    "ingest": "npm -w engine run -s cli -- ingest",
+    "odds": "npm -w engine run -s cli -- odds",
+    "train": "npm -w engine run -s cli -- train",
+    "update": "npm -w engine run -s cli -- update",
+    "build": "npm -w web run build",
+    "start": "npm -w engine run -s start",
+    "dev": "npm -w web run dev",
+    "test": "npm -w engine test",
+    "typecheck": "npm -w engine run typecheck && npm -w web run typecheck",
+    "apk": "%SystemRoot%/System32/WindowsPowerShell/v1.0/powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/build-apk.ps1",
+    "autostart": "%SystemRoot%/System32/WindowsPowerShell/v1.0/powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/install-autostart.ps1",
+    "autostart:remove": "%SystemRoot%/System32/WindowsPowerShell/v1.0/powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/install-autostart.ps1 -Remove",
+    "github": "node --disable-warning=ExperimentalWarning scripts/github-setup.mjs"
+  }
+}

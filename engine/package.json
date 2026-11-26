@@ -1,0 +1,12 @@
+{
+  "name": "engine",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "cli": "node --disable-warning=ExperimentalWarning src/cli.ts",
+    "start": "node --disable-warning=ExperimentalWarning src/server.ts",
+    "test": "node --disable-warning=ExperimentalWarning --test \"test/*.test.ts\"",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": { "@types/node": "^24.0.0", "typescript": "^5.9.0" }
+}

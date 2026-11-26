@@ -1,0 +1,16 @@
+{
+  "appId": "rs.betpredict.app",
+  "appName": "NBA predikcije",
+  "webDir": "dist",
+  "server": { "androidScheme": "http", "cleartext": true },
+  "plugins": {
+    "BackgroundRunner": {
+      "label": "rs.betpredict.tracker",
+      "src": "runners/background.js",
+      "event": "checkGames",
+      "repeat": true,
+      "interval": 15,
+      "autoStart": true
+    }
+  }
+}

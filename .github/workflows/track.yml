@@ -1,0 +1,66 @@
+# Prati mečeve bez uključenog računara. Kod je u ovom (privatnom) repozitorijumu,
+# a u javni repozitorijum idu samo JSON fajlovi sa prognozama.
+# Raspored je podešen tako da stane u 2.000 besplatnih minuta mesečno.
+name: Pracenje meceva
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '13 0-7,10,13,16-23 * * *'
+permissions:
+  contents: write
+concurrency:
+  group: track
+  cancel-in-progress: false
+jobs:
+  track:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 24 }
+      - name: Baza iz prethodnog pokretanja
+        id: cache
+        uses: actions/cache/restore@v4
+        with:
+          path: data
+          key: data-${{ github.run_id }}
+          restore-keys: data-
+      - name: Početna baza (samo ako keš ne postoji)
+        if: steps.cache.outputs.cache-matched-key == ''
+        env: { GH_TOKEN: '${{ github.token }}' }
+        run: |
+          gh release download seed --pattern data.tar.gz --output /tmp/data.tar.gz --repo "$GITHUB_REPOSITORY"
+          tar -xzf /tmp/data.tar.gz
+      - name: Zapis uspešnosti
+        run: |
+          mkdir -p state
+          if git fetch --depth 1 origin state; then git show FETCH_HEAD:live.json > state/live.json; fi
+      - run: node --disable-warning=ExperimentalWarning engine/src/cli.ts update
+      - name: Sačuvaj zapis uspešnosti
+        run: |
+          blob=$(git hash-object -w state/live.json)
+          tree=$(printf '100644 blob %s\tlive.json\n' "$blob" | git mktree)
+          commit=$(git -c user.name=bot -c user.email=bot@users.noreply.github.com commit-tree "$tree" -m "zapis")
+          git push -f origin "$commit:refs/heads/state"
+      - name: Sačuvaj bazu
+        uses: actions/cache/save@v4
+        with:
+          path: data
+          key: data-${{ github.run_id }}
+      - name: Objavi prognoze
+        env:
+          DEPLOY_KEY: ${{ secrets.DATA_DEPLOY_KEY }}
+          DATA_REPO: ${{ vars.DATA_REPO }}
+        run: |
+          install -m 700 -d ~/.ssh
+          (umask 077; printf '%s\n' "$DEPLOY_KEY" > ~/.ssh/data_key)
+          ssh-keyscan -t ed25519 github.com >> ~/.ssh/known_hosts 2>/dev/null
+          mkdir -p /tmp/pub/data
+          cp data/public/*.json /tmp/pub/data/
+          printf '# NBA prognoze\n\nAutomatski objavljeni podaci. Nije savet za klađenje.\n' > /tmp/pub/README.md
+          cd /tmp/pub
+          git init -q -b main
+          git add -A
+          git -c user.name=bot -c user.email=bot@users.noreply.github.com commit -qm "podaci"
+          GIT_SSH_COMMAND='ssh -i ~/.ssh/data_key -o IdentitiesOnly=yes' git push -qf "git@github.com:$DATA_REPO.git" main
