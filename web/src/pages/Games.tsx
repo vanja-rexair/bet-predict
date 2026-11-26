@@ -1,15 +1,16 @@
 import { useMemo, useState } from 'react';
-import type { GameView, Stats } from '../../../engine/src/types.ts';
+import type { GameView, HistoryRow, Stats } from '../../../engine/src/types.ts';
 import { getBudget, refreshServer, useData } from '../api.ts';
 import { int, localDay, longDay, num, plural, time } from '../format.ts';
 import { GameCard } from '../components/GameCard.tsx';
-import { Empty, Loading, RecordStrip, Segmented } from '../components/ui.tsx';
+import { Empty, LevelTable, levelRows, Loading, RecordStrip, Segmented } from '../components/ui.tsx';
 
 type Scope = 'live' | 'season' | 'all';
 
 export function Games() {
   const { data, error, reload } = useData<{ generatedAt: string; games: GameView[] }>('today.json', 45_000);
   const stats = useData<Stats>('stats.json', 300_000).data;
+  const hist = useData<{ rows: HistoryRow[] }>('history.json', 300_000).data;
   const [scope, setScope] = useState<Scope>('season');
   const [busy, setBusy] = useState(false);
   const days = useMemo(() => {
@@ -26,6 +27,11 @@ export function Games() {
     reload();
     setTimeout(() => { reload(); setBusy(false); }, 20_000);
   };
+  const levels = useMemo(() => {
+    if (scope === 'all') return stats ? levelRows(stats.buckets.map((b) => ({ c: Number.parseInt(b.label) / 100, hit: false, n: b.n, hits: b.hit }))) : null;
+    if (!hist) return null;
+    return levelRows(hist.rows.filter((r) => scope === 'season' || r.src === 'live').map((r) => ({ c: Math.max(r.p, 1 - r.p), hit: r.hit })));
+  }, [scope, stats, hist]);
   const rec = stats && (scope === 'live' ? stats.live : scope === 'season' ? stats.season : stats.overall);
   return (
     <>
@@ -35,7 +41,10 @@ export function Games() {
       {rec && (
         <div className="record-wrap">
           <Segmented label="Period" value={scope} onChange={setScope} options={[['live', 'Uživo'], ['season', 'Ova sezona'], ['all', 'Od 2018/19']]} />
-          <RecordStrip r={rec} />
+          <div className="record-row">
+            <div><RecordStrip r={rec} /></div>
+            {levels && <LevelTable rows={levels} />}
+          </div>
           <p className="hint">{scope === 'live'
             ? 'Samo predikcije zaključane pre početka meča, od puštanja aplikacije.'
             : 'Simulacija: za svaki meč model je koristio samo podatke od pre tog meča.'}</p>

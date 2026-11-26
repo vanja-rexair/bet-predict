@@ -67,3 +67,38 @@ export function Verdict({ hit }: { hit: boolean }) {
 export function Chip({ c }: { c: number }) {
   return <span className={`chip chip-${level(c)}`}>{confidenceLabel(c)}</span>;
 }
+
+export interface LevelRow { label: string; range: string; n: number; hit: number }
+/** Nivoi sigurnosti, isti kao na karticama. */
+export const LEVELS: [string, string, number, number][] = [
+  ['Neizvesno', '50–60%', 0.5, 0.6], ['Umereno', '60–70%', 0.6, 0.7], ['Sigurno', '70–80%', 0.7, 0.8], ['Veoma sigurno', '80% i više', 0.8, 1.01],
+];
+/** Zbir pogodaka po nivou iz parova (sigurnost, pogodak). */
+export function levelRows(list: { c: number; hit: boolean; n?: number; hits?: number }[]): LevelRow[] {
+  return LEVELS.map(([label, range, lo, hi]) => {
+    const l = list.filter((r) => r.c >= lo && r.c < hi);
+    return { label, range, n: l.reduce((s, r) => s + (r.n ?? 1), 0), hit: l.reduce((s, r) => s + (r.hits ?? (r.hit ? 1 : 0)), 0) };
+  });
+}
+
+/** Odigrani, pogođeni i izgubljeni po nivou sigurnosti. */
+export function LevelTable({ rows }: { rows: LevelRow[] }) {
+  return (
+    <div className="levels table-wrap">
+      <table>
+        <thead><tr><th>Sigurnost</th><th className="r">Odigrani</th><th className="r">Pogođeni</th><th className="r">Izgubljeni</th><th className="r">Uspešnost</th><th className="r">Odnos</th></tr></thead>
+        <tbody>{rows.map((r) => {
+          const miss = r.n - r.hit;
+          return (
+            <tr key={r.label}>
+              <th scope="row"><span className={`chip chip-${level(LEVELS.find((l) => l[0] === r.label)![2])}`}>{r.label}</span> <span className="muted">{r.range}</span></th>
+              <td className="r">{int(r.n)}</td><td className="r">{int(r.hit)}</td><td className="r">{int(miss)}</td>
+              <td className="r"><strong>{r.n ? pct(r.hit / r.n, 1) : '–'}</strong></td>
+              <td className="r">{!r.n ? '–' : miss ? `${num(r.hit / miss, 2)} : 1` : `${int(r.hit)} : 0`}</td>
+            </tr>
+          );
+        })}</tbody>
+      </table>
+    </div>
+  );
+}
