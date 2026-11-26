@@ -1,5 +1,6 @@
 // Prebacuje praćenje na GitHub: privatan repozitorijum za kod, javni samo za JSON prognoze.
 // Pokretanje: npm run github          Provera bez slanja: npm run github -- --proveri
+// Postojeći javni repozitorijum za kod: npm run github -- --kod=bet-predict --javno
 import { execFileSync } from 'node:child_process';
 import { DatabaseSync } from 'node:sqlite';
 import fs from 'node:fs';
@@ -8,8 +9,11 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const CODE = 'nba-predikcije', DATA = 'nba-prognoze';
+const arg = (k) => process.argv.find((a) => a.startsWith(`--${k}=`))?.slice(k.length + 3);
+const CODE = arg('kod') ?? 'nba-predikcije', DATA = arg('prognoze') ?? 'nba-prognoze';
 const dry = process.argv.includes('--proveri');
+/** Kod može biti i javan, ako je to izričito traženo. */
+const publicCode = process.argv.includes('--javno');
 const opt = { cwd: root, encoding: 'utf8' };
 const run = (cmd, args, extra = {}) => execFileSync(cmd, args, { ...opt, stdio: ['pipe', 'pipe', 'pipe'], ...extra }).trim();
 const ok = (cmd, args) => { try { run(cmd, args); return true; } catch { return false; } };
@@ -32,7 +36,7 @@ const bad = run('git', ['ls-files']).split('\n').filter((f) => /^(data|state|\.t
 if (bad.length) throw new Error('Osetljivi fajlovi u listi za slanje: ' + bad.join(', '));
 const exists = { [code]: ok('gh', ['api', `repos/${code}`]), [data]: ok('gh', ['api', `repos/${data}`]) };
 say(`Alati: gh da, ssh-keygen ${fs.existsSync(keygen) ? 'da' : 'iz PATH-a'}, tar ${fs.existsSync(tar) ? 'da' : 'NE'}`);
-say(`Privatan kod: ${CODE} (${exists[code] ? 'već postoji' : 'biće napravljen'})`);
+say(`${publicCode ? 'Javan' : 'Privatan'} kod: ${CODE} (${exists[code] ? 'već postoji' : 'biće napravljen'})`);
 say(`Javne prognoze: ${DATA} (${exists[data] ? 'već postoji' : 'biće napravljen'})`);
 if (dry) { say('Provera je gotova, ništa nije poslato.'); process.exit(0); }
 
@@ -41,9 +45,9 @@ run('git', ['config', 'user.name', login]);
 run('git', ['config', 'user.email', `${id}+${login}@users.noreply.github.com`]);
 if (run('git', ['status', '--porcelain'])) run('git', ['commit', '-q', '-m', 'NBA predikcije: engine, web i Android aplikacija']);
 
-if (!exists[code]) run('gh', ['repo', 'create', code, '--private']);
+if (!exists[code]) run('gh', ['repo', 'create', code, publicCode ? '--public' : '--private']);
 const vis = run('gh', ['api', `repos/${code}`, '-q', '.visibility']);
-if (vis !== 'private') throw new Error(`${CODE} nije privatan, prekidam.`);
+if (vis !== 'private' && !publicCode) throw new Error(`${CODE} nije privatan, prekidam (za javan dodaj --javno).`);
 if (!exists[data]) run('gh', ['repo', 'create', data, '--public']);
 say('1/6 Repozitorijumi spremni');
 
@@ -51,7 +55,7 @@ const url = `https://github.com/${code}.git`;
 if (ok('git', ['remote', 'get-url', 'origin'])) run('git', ['remote', 'set-url', 'origin', url]);
 else run('git', ['remote', 'add', 'origin', url]);
 run('git', [...cred, 'push', '-q', '-u', 'origin', 'HEAD:main']);
-say('2/6 Kod poslat u privatan repozitorijum');
+say(`2/6 Kod poslat (${vis === 'private' ? 'privatno' : 'javno'})`);
 
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'nba-'));
 try {
@@ -64,7 +68,7 @@ try {
   run(tar, ['-czf', tgz, '-C', tmp, 'data']);
   if (ok('gh', ['release', 'view', 'seed', '--repo', code])) run('gh', ['release', 'upload', 'seed', tgz, '--clobber', '--repo', code]);
   else run('gh', ['release', 'create', 'seed', tgz, '--repo', code, '--title', 'Pocetna baza', '--notes', 'Pocetna baza za pracenje']);
-  say('3/6 Početna baza poslata (privatno)');
+  say(`3/6 Početna baza poslata (${vis === 'private' ? 'privatno' : 'javno'})`);
 
   if (!run('git', [...cred, 'ls-remote', 'origin', 'refs/heads/state'])) {
     const blob = run('git', ['hash-object', '-w', 'state/live.json']);
