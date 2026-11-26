@@ -5,6 +5,7 @@ import { getMeta, setMeta, tx } from '../db.ts';
 import { MODEL_VERSION, STATE_DIR, addDays, etDate } from '../config.ts';
 import { advise, isHighlight, kelly, noVig } from '../market.ts';
 import { ingestSummary, injuries, roster, scoreboard, type BoardGame, type Injury } from '../sources/espn.ts';
+import { officialReport, mergeOfficial, type OfficialReport } from '../sources/nbainjury.ts';
 import { TEAMS, team } from '../teams.ts';
 import { buildHistory, type Availability, type League, type Pregame, type TeamBox, type PlayerBox } from '../model/features.ts';
 import { BASE_NAMES, applyStack, explain, predictBase } from '../model/ensemble.ts';
@@ -18,7 +19,7 @@ import { exportAll } from './export.ts';
 import type { GameView, LiveState, OutPlayer, TeamRef } from '../types.ts';
 
 const DAYS_AHEAD = 2;
-const PROB: Record<string, number> = { Out: 0, Suspension: 0, Doubtful: 0.2, Questionable: 0.5, 'Day-To-Day': 0.6, Probable: 0.9 };
+const PROB: Record<string, number> = { Available: 1, Out: 0, Suspension: 0, Doubtful: 0.2, Questionable: 0.5, 'Day-To-Day': 0.6, Probable: 0.9 };
 
 /** Stanje koje server drži u memoriji između provera. */
 export interface Ctx { league: League | null; games: number; model: ModelFile | null }
@@ -143,6 +144,9 @@ export async function update(db: DB, ctx: Ctx = newCtx(), log: (s: string) => vo
 
   // 4) Predikcije i praćenje svakog meča.
   const inj = await injuries();
+  // Zvanični NBA izveštaj (svakih 15 min); ako nije dostupan, ostaje samo ESPN.
+  const official = await officialReport().catch((e) => { log(`NBA izveštaj o povredama nije dostupan: ${(e as Error).message}`); return null; });
+  if (official) log(`NBA izveštaj o povredama: ${official.at} ET, ${official.entries.length} igrača`);
   const ros = await rosters(db);
   const names = new Map((db.prepare('SELECT pid,name FROM players').all() as { pid: number; name: string }[]).map((r) => [r.pid, r.name]));
   const nm = (pid: number) => names.get(pid) ?? `#${pid}`;
@@ -166,7 +170,7 @@ export async function update(db: DB, ctx: Ctx = newCtx(), log: (s: string) => vo
     if (!started) {
       // Prognoze starog modela (sa kvotama) počinju ispočetka, da prva prognoza bude bez kvota.
       const old = prev?.initial ? prev : undefined;
-      const next = predict(g, league, model, lessons, inj, ros, extra, nm, old);
+      const next = predict(g, league, model, lessons, inj, ros, extra, nm, old, official, log);
       tx(db, () => {
         diffEvents(db, old, next);
         saveLive(db, next);
@@ -200,8 +204,10 @@ export async function update(db: DB, ctx: Ctx = newCtx(), log: (s: string) => vo
 }
 
 function predict(g: BoardGame, lg: League, model: ModelFile, lessons: Lessons, inj: Map<number, Injury[]>, ros: Map<number, number[]>,
-  extra: Map<number, { date: string; loc: number }[]>, nm: (pid: number) => string, prev: Stored | undefined): Stored {
-  const ih = inj.get(g.home) ?? [], ia = inj.get(g.away) ?? [];
+  extra: Map<number, { date: string; loc: number }[]>, nm: (pid: number) => string, prev: Stored | undefined, official: OfficialReport | null = null,
+  log: (s: string) => void = () => {}): Stored {
+  const merged = (id: number) => mergeOfficial(inj.get(id) ?? [], official, id, g.date, [...new Set([...lg.pool(id), ...(ros.get(id) ?? [])])], nm, log);
+  const ih = merged(g.home), ia = merged(g.away);
   const { x, pre } = lg.features({ season: g.season, stype: g.stype, date: g.date, home: g.home, away: g.away, neutral: g.neutral ? 1 : 0 },
     availability(lg, g.home, ih, ros.get(g.home) ?? []), availability(lg, g.away, ia, ros.get(g.away) ?? []), extra);
   const bp = predictBase(model.base, x);
@@ -218,13 +224,13 @@ function predict(g: BoardGame, lg: League, model: ModelFile, lessons: Lessons, i
   const statusOf = (list: Injury[], pid: number) => list.find((i) => i.pid === pid);
   const row = (i: Injury, min: number, impact: number, prob: number): OutPlayer => ({
     name: nm(i.pid), min: Math.round(min), impact, prob, status: i.status === 'Out' ? 'Ne igra' : i.status === 'Day-To-Day' ? 'Neizvestan' : i.status,
-    reason: i.reason, reported: i.reported, expected: i.expected, url: i.url,
+    reason: i.reason, reported: i.reported, expected: i.expected, url: i.url, source: i.source ?? 'ESPN',
   });
   const out = (l: Pregame['h'], list: Injury[]): OutPlayer[] => {
-    const main = l.out.filter((p) => statusOf(list, p.pid)).map((p) => row(statusOf(list, p.pid)!, p.min, p.impact, p.prob));
+    const main = l.out.filter((p) => statusOf(list, p.pid) && statusOf(list, p.pid)!.status !== 'Available').map((p) => row(statusOf(list, p.pid)!, p.min, p.impact, p.prob));
     // Neizvesni se prikazuju svi, i kad su iz dubine klupe.
     const seen = new Set(l.out.map((p) => p.pid));
-    const rest = list.filter((i) => i.status !== 'Out' && !seen.has(i.pid)).map((i) => row(i, lg.players.get(i.pid)?.em ?? 0, lg.impact(i.pid), PROB[i.status] ?? 0.5));
+    const rest = list.filter((i) => i.status !== 'Out' && i.status !== 'Available' && !seen.has(i.pid)).map((i) => row(i, lg.players.get(i.pid)?.em ?? 0, lg.impact(i.pid), PROB[i.status] ?? 0.5));
     return [...main, ...rest];
   };
   const now = new Date().toISOString();
@@ -270,7 +276,7 @@ function diffEvents(db: DB, prev: Stored | undefined, next: Stored): void {
   else if (Math.abs(prev.pHome - next.pHome) >= 0.03) event(db, next.id, 'prediction', 1, title, `${pickName(next)}: ${pct(prev.confidence)} → ${pct(next.confidence)}.`);
   for (const [a, b, t] of [[prev.outHome, next.outHome, next.home], [prev.outAway, next.outAway, next.away]] as const) {
     const before = new Map(a.map((p) => [p.name, p.status]));
-    for (const p of b) if (before.get(p.name) !== p.status) event(db, next.id, 'injury', p.min >= 26 ? 3 : p.min >= 14 ? 2 : 1, title, `${p.name} (${t.abbr}): ${p.status.toLowerCase()}${p.reason ? `, ${p.reason}` : ''}. Izvor: ESPN.`);
+    for (const p of b) if (before.get(p.name) !== p.status) event(db, next.id, 'injury', p.min >= 26 ? 3 : p.min >= 14 ? 2 : 1, title, `${p.name} (${t.abbr}): ${p.status.toLowerCase()}${p.reason ? `, ${p.reason}` : ''}. Izvor: ${p.source ?? 'ESPN'}.`);
     for (const p of a) if (!b.some((q) => q.name === p.name)) event(db, next.id, 'injury', p.min >= 26 ? 3 : p.min >= 14 ? 2 : 1, title, `${p.name} (${t.abbr}) više nije na listi povređenih.`);
   }
   if (prev.odds && next.odds && Math.abs(prev.odds.implied - next.odds.implied) >= 0.03) {

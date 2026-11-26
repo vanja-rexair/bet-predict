@@ -3,6 +3,8 @@ export interface TeamRef { id: number; abbr: string; name: string }
 export interface OutPlayer {
   name: string; min: number; impact: number; prob: number; status: string;
   reason?: string; reported?: string | null; expected?: string | null; url?: string | null;
+  /** Ko je objavio status: zvanični NBA izveštaj ili ESPN. */
+  source?: 'NBA' | 'ESPN';
 }
 export interface OddsView {
   provider: string; home: number; away: number; homeOpen: number | null; awayOpen: number | null;

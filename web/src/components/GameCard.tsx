@@ -21,7 +21,8 @@ function TeamLine({ t, p, picked, score, won, odd }: { t: TeamRef; p: number; pi
 function Source({ o }: { o: OutPlayer }) {
   if (!o.reason) return null;
   const when = o.reported ? `, ${dayTime(o.reported)}` : '';
-  return <span className="src">Izvor: {o.url ? <a href={o.url} target="_blank" rel="noreferrer">ESPN</a> : 'ESPN'}{when}</span>;
+  const src = o.source === 'NBA' ? 'zvanični NBA izveštaj' : 'ESPN';
+  return <span className="src">Izvor: {o.url ? <a href={o.url} target="_blank" rel="noreferrer">{src}</a> : src}{when}</span>;
 }
 
 /** Neizvesni igrači stoje odmah na kartici, sa razlogom i izvorom. */

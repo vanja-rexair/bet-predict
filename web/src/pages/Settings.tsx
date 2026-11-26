@@ -74,7 +74,7 @@ export function Settings() {
       </Section>
       <Section title="O predikcijama">
         <p>Model daje verovatnoće, ne sigurne ishode. Nijedan model ne može da pogodi sve NBA mečeve: i kladionice pogađaju favorita u oko 68% mečeva. Ako se kladite, radite to odgovorno i samo novcem koji možete da izgubite.</p>
-        <p className="hint">Podaci: ESPN (javni API) i sportsdataverse. Besplatno, bez naloga i ključeva.</p>
+        <p className="hint">Podaci: ESPN (javni API), zvanični NBA izveštaj o povredama i sportsdataverse. Besplatno, bez naloga i ključeva.</p>
       </Section>
     </>
   );

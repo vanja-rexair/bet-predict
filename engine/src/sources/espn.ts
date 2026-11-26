@@ -120,6 +120,7 @@ export interface Injury {
   pid: number; name: string; status: string; reason: string;
   /** Kada je objavljeno, procena povratka i stranica igrača na ESPN-u. */
   reported: string | null; expected: string | null; url: string | null;
+  source?: 'NBA' | 'ESPN';
 }
 
 export async function injuries(): Promise<Map<number, Injury[]>> {
@@ -133,7 +134,7 @@ export async function injuries(): Promise<Map<number, Injury[]>> {
       if (!pid) continue;
       list.push({
         pid, name: i.athlete.displayName, status: i.status, reason: injuryReason(i.details?.type, i.details?.side, i.details?.detail),
-        reported: i.date ?? null, expected: i.details?.returnDate ?? null, url: espnUrl(href),
+        reported: i.date ?? null, expected: i.details?.returnDate ?? null, url: espnUrl(href), source: 'ESPN',
       });
     }
     out.set(n(t.id), list);

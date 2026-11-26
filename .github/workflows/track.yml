@@ -1,11 +1,16 @@
 # Prati mečeve bez uključenog računara. Kod je u ovom (privatnom) repozitorijumu,
 # a u javni repozitorijum idu samo JSON fajlovi sa prognozama.
-# Raspored je podešen tako da stane u 2.000 besplatnih minuta mesečno.
+# Raspored je podešen tako da stane u 2.000 besplatnih minuta mesečno (oko 30 pokretanja dnevno).
+# Mečevi počinju u :00 ili :30 po ET, pa provere u :40 i :10 padaju 20 minuta pre početka,
+# posle poslednjeg NBA izveštaja o povredama. Prognoza se zaključava sa tim podacima.
 name: Pracenje meceva
 on:
   workflow_dispatch:
   schedule:
-    - cron: '13 0-7,10,13,16-23 * * *'
+    # Večernji termini mečeva (16-03 UTC, i za letnje i za zimsko vreme u SAD).
+    - cron: '10,40 16-23,0-3 * * *'
+    # Kraj kasnih mečeva i jutarnje osvežavanje rezultata i sastava.
+    - cron: '13 4-7,10,13 * * *'
 permissions:
   contents: write
 concurrency:
