@@ -18,7 +18,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
-        with: { node-version: 24 }
+        with: { node-version: 24, cache: npm }
+      - name: Biblioteke za engine
+        run: npm ci -w engine --ignore-scripts
       - name: Baza iz prethodnog pokretanja
         id: cache
         uses: actions/cache/restore@v4
