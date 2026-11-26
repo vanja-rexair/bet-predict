@@ -3,7 +3,7 @@ import path from 'node:path';
 import type { DB } from '../db.ts';
 import { getMeta, setMeta, tx } from '../db.ts';
 import { MODEL_VERSION, STATE_DIR, addDays, etDate } from '../config.ts';
-import { ev, isHighlight, kelly, noVig } from '../market.ts';
+import { advise, isHighlight, kelly, noVig } from '../market.ts';
 import { ingestSummary, injuries, roster, scoreboard, type BoardGame, type Injury } from '../sources/espn.ts';
 import { TEAMS, team } from '../teams.ts';
 import { buildHistory, type Availability, type League, type Pregame, type TeamBox, type PlayerBox } from '../model/features.ts';
@@ -212,14 +212,9 @@ function predict(g: BoardGame, lg: League, model: ModelFile, lessons: Lessons, i
   const pHome = shift(base, (model.segGate ? lessons.segment(x, base) : 0) + (model.teamGate ? lessons.team(g.home, g.away) : 0));
   const pick = pHome >= 0.5 ? 'home' as const : 'away' as const;
 
-  let value: GameView['value'] = null;
-  if (o && mkt !== null) {
-    for (const side of ['home', 'away'] as const) {
-      const p = side === 'home' ? pHome : 1 - pHome, od = (side === 'home' ? o.mlh : o.mla)!;
-      const e = ev(p, od);
-      if (p >= 0.4 && e >= 0.05 && (!value || e > value.ev)) value = { side, odds: od, ev: e, stake: kelly(p, od) };
-    }
-  }
+  // Preporuka i papirna opklada idu po istom pravilu.
+  const advice = advise(pHome, o && mkt !== null ? { home: o.mlh!, away: o.mla! } : null);
+  const value: GameView['value'] = advice.play ? { side: advice.side, odds: advice.odds!, ev: advice.ev!, stake: kelly(advice.p, advice.odds!) } : null;
   const statusOf = (list: Injury[], pid: number) => list.find((i) => i.pid === pid);
   const row = (i: Injury, min: number, impact: number, prob: number): OutPlayer => ({
     name: nm(i.pid), min: Math.round(min), impact, prob, status: i.status === 'Out' ? 'Ne igra' : i.status === 'Day-To-Day' ? 'Neizvestan' : i.status,
@@ -240,7 +235,7 @@ function predict(g: BoardGame, lg: League, model: ModelFile, lessons: Lessons, i
     id: g.id, date: g.date, start: g.start, season: g.season, home: ref(g.home), away: ref(g.away), neutral: g.neutral, playoff: g.stype !== 2, venue: g.venue,
     pHome, pick, confidence: Math.max(pHome, 1 - pHome), margin: bp.margin, total: bp.total, sdMargin: model.base.sdMargin,
     odds: o && mkt !== null ? { provider: o.provider, home: o.mlh!, away: o.mla!, homeOpen: o.mlhOpen, awayOpen: o.mlaOpen, spread: o.spread, total: o.total, implied: mkt } : null,
-    highlight: isHighlight(Math.max(pHome, 1 - pHome), pickOdds), value, lineMove: mkt !== null && openP !== null ? mkt - openP : null,
+    highlight: isHighlight(Math.max(pHome, 1 - pHome), pickOdds), value, advice, lineMove: mkt !== null && openP !== null ? mkt - openP : null,
     models: BASE_NAMES.map((name, i) => ({ name, p: sigmoid(bp.logits[i]) })),
     factors: explain(model.base, x).slice(0, 6), outHome: out(pre.h, ih), outAway: out(pre.a, ia), notes: notes(g, pre, mkt, openP, pHome),
     initial: prev?.initial ?? { p: pHome, pick, ts: now },
@@ -281,6 +276,10 @@ function diffEvents(db: DB, prev: Stored | undefined, next: Stored): void {
   if (prev.odds && next.odds && Math.abs(prev.odds.implied - next.odds.implied) >= 0.03) {
     const up = next.odds.implied > prev.odds.implied;
     event(db, next.id, 'odds', 2, title, `Kvota pomerena ka timu ${up ? next.home.name : next.away.name}: ${next.home.abbr} ${next.odds.home.toFixed(2)} / ${next.away.abbr} ${next.odds.away.toFixed(2)}.`);
+  }
+  if (next.advice && prev.advice && prev.advice.play !== next.advice.play) {
+    const side = next.advice.side === 'home' ? next.home.name : next.away.name;
+    event(db, next.id, 'advice', 2, title, next.advice.play ? `Preporučujem da igraš: ${side} na kvotu ${next.advice.odds!.toFixed(2).replace('.', ',')}.` : 'Više ne preporučujem da igraš ovaj meč.');
   }
   if (!prev.highlight && next.highlight) event(db, next.id, 'value', 2, title, `Siguran izbor i dobra kvota: ${pickName(next)} ${pct(next.confidence)} na ${next.closeOddsPick!.toFixed(2)}.`);
 }

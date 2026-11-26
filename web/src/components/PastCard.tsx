@@ -1,5 +1,5 @@
 import type { RecentGame } from '../../../engine/src/types.ts';
-import { dayTime, pct, time } from '../format.ts';
+import { dayTime, odds, pct, time } from '../format.ts';
 import { Chip, Verdict } from './ui.tsx';
 
 /** Završen meč: zeleno ako je prva prognoza bila tačna, crveno ako nije. */
@@ -29,6 +29,11 @@ export function PastCard({ g }: { g: RecentGame }) {
         <div><dt>Prva prognoza</dt><dd>{pick.name} {pct(conf(g.initial.p))} <Chip c={conf(g.initial.p)} /></dd></div>
         {changed && <div><dt>Pred meč promenjeno</dt><dd>{side(changed.pick).name} {pct(conf(changed.p))}</dd></div>}
         {!changed && g.final && Math.abs(conf(g.final.p) - conf(g.initial.p)) >= 0.02 && <div><dt>Pred meč</dt><dd>{pct(conf(g.final.p))}</dd></div>}
+        {g.advice && (
+          <div><dt>Preporuka</dt><dd>{g.advice.play
+            ? <>Igraj {side(g.advice.side).abbr} na {odds(g.advice.odds)}, <span className={`verdict ${(g.advice.side === 'home') === homeWon ? 'hit' : 'miss'}`}>{(g.advice.side === 'home') === homeWon ? 'prošla' : 'pala'}</span></>
+            : 'Ne igraj'}</dd></div>
+        )}
         <div><dt>Ishod</dt><dd>{(homeWon ? g.home : g.away).name} za {Math.abs(g.hs - g.as)}</dd></div>
       </dl>
       {!g.hit && g.postmortem && <p className="pm-short"><strong>{g.postmortem.category}.</strong> {g.postmortem.summary}</p>}

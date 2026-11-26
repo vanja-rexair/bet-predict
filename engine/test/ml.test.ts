@@ -4,7 +4,7 @@ import { evaluate, normCdf, rng, sigmoid } from '../src/ml/metrics.ts';
 import { trainGbdt, predictRaw } from '../src/ml/gbdt.ts';
 import { trainLinear, linearRaw } from '../src/ml/linear.ts';
 import { Elo, Glicko } from '../src/ml/ratings.ts';
-import { american, kelly, noVig, stakeRsd } from '../src/market.ts';
+import { advise, american, flat, kelly, noVig, stakeRsd } from '../src/market.ts';
 import { parseCsv } from '../src/sources/csv.ts';
 import { inPlayProb, remaining } from '../src/model/inplay.ts';
 import { Gate, Lessons } from '../src/model/lessons.ts';
@@ -72,6 +72,13 @@ test('kvote: konverzija, marža i ulog', () => {
   assert.equal(stakeRsd(0.7, 1.5, 10000), 250);
 });
 
+test('isplativost: 93 od 100 na kvotu 1,08 je blagi plus, a na 1,06 minus', () => {
+  const at = (odds: number) => flat(Array.from({ length: 100 }, (_, i) => ({ hit: i < 93, odds })));
+  assert.ok(Math.abs(at(1.08).roi - 0.0044) < 1e-9);
+  assert.ok(Math.abs(at(1.06).roi + 0.0142) < 1e-9);
+  assert.equal(flat([{ hit: true, odds: null }]).n, 0);
+});
+
 test('CSV: navodnici, zarezi i prelomi u polju', () => {
   const rows = [...parseCsv('a,b,c\n1,"x, ""y""\nz",3\r\n4,,6\n', ['c', 'b', 'nema'])];
   assert.deepEqual(rows, [['3', 'x, "y"\nz', ''], ['6', '', '']]);
@@ -121,4 +128,20 @@ test('linearni model podnosi konstantnu karakteristiku i posle čuvanja u JSON',
   const m = trainLinear(X, y, new Array(100).fill(1), 'ridge', 0.01);
   const saved = JSON.parse(JSON.stringify(m)) as typeof m;
   assert.ok(Math.abs(linearRaw(saved, [5, 2]) - 2) < 0.05);
+});
+
+test('preporuka: igra se samo kad je šansa bar 40% i bar 5% bolja od kvote', () => {
+  assert.equal(advise(0.6, null).play, false);
+  const fav = advise(0.6, { home: 1.8, away: 2.1 }); // 0,6 × 1,8 = 1,08
+  assert.equal(fav.play, true);
+  assert.equal(fav.side, 'home');
+  assert.ok(Math.abs(fav.ev! - 0.08) < 1e-9);
+  const low = advise(0.6, { home: 1.6, away: 2.5 }); // 0,96 i 0,4 × 2,5 = 1,0
+  assert.equal(low.play, false);
+  assert.equal(low.side, 'home');
+  const dog = advise(0.55, { home: 1.3, away: 3.6 }); // gost 45% × 3,6 = 1,62
+  assert.equal(dog.play, true);
+  assert.equal(dog.side, 'away');
+  assert.match(dog.reason, /Autsajder/);
+  assert.equal(advise(0.7, { home: 1.2, away: 5 }).play, false); // gost 30% je ispod 40%
 });

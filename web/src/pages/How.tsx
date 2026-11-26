@@ -100,6 +100,61 @@ export function How() {
         <p>Od 2018/19 pogodio je {pct(s.overall.pct, 1)} od {int(s.overall.total)} mečeva u simulaciji. Svi brojevi su na strani Učinak.</p>
       </Q>
       <Q q="Šta se ne koristi?"><p>Podaci sa kamera o kretanju igrača i odnos uplata na kladionicama, jer za njih nema besplatnog izvora.</p></Q>
+      <Q q="Kada piše „Preporučujem da igraš”?">
+        <p>Kad naša šansa za tim iznosi bar 40% i bar 5% je bolja od onoga što kvota traži (kvota 2,00 traži 50%). Može biti i autsajder, ako analiza vidi više nego kladionica. Preporuka se zaključava na početku meča i meri se na strani Učinak. Isto pravilo je u simulaciji bilo u minusu, pa se preporuke za sada prate papirno.</p>
+      </Q>
+
+      <h2 className="faq-sub">Terminologija</h2>
+      <Q q="Elo">
+        <p>Rejting snage tima, isti princip kao u šahu. Svaki tim ima broj (prosek je oko 1500). Posle meča pobednik uzima poene od poraženog: više ako je pobedio jačeg protivnika ili pobedio ubedljivo, manje ako je pobedio slabijeg. Iz razlike rejtinga dva tima, uz prednost domaćeg terena, dobija se šansa za pobedu.</p>
+        <p>Primer: tim sa 1600 protiv tima sa 1500 na neutralnom terenu ima oko 64% šanse.</p>
+      </Q>
+      <Q q="Glicko">
+        <p>Unapređen Elo. Pored rejtinga pamti i <strong>koliko je rejting pouzdan</strong>. Na početku sezone, ili posle velike promene u timu, pouzdanost je mala, pa rejting brže reaguje na nove rezultate. Kad tim odigra mnogo mečeva, rejting se smiri i menja se sporije.</p>
+      </Q>
+      <Q q="Logistička regresija">
+        <p>Jednostavan statistički model koji svakom parametru (forma, umor, povrede, efikasnost...) daje težinu: koliko on pomera šansu i u kom smeru. Saberu se svi doprinosi, a zbir se pretvori u procenat između 0 i 100%. Prednost: lako se vidi zašto je model nešto odlučio. Mana: ne vidi kombinacije, na primer da je umor gori kad tim i putuje.</p>
+      </Q>
+      <Q q="Gradient boosting">
+        <p>Model sastavljen od stotina malih „stabala odlučivanja”. Stablo postavlja niz pitanja tipa „da li je favorit igrao juče?” → „da li mu fali najbolji igrač?” i za svaki odgovor daje malu korekciju. Svako novo stablo uči na greškama prethodnih. Za razliku od logističke regresije, hvata kombinacije faktora, ali ga je teže objasniti.</p>
+      </Q>
+      <Q q="Razlika poena">
+        <p>Peti model ne predviđa pobednika, nego za koliko poena će domaćin dobiti ili izgubiti (na primer +4,5). Iz te razlike i uobičajenog odstupanja NBA mečeva računa se šansa za pobedu. Koristi se i za projekciju rezultata na kartici.</p>
+      </Q>
+      <Q q="Spajanje modela (težine)">
+        <p>Pet modela daje pet šansi. One se ne sabiraju podjednako: na ranijim mečevima se izmeri koji model je bio tačniji, i on dobija veću težinu. Težine se vide u primeru na vrhu ove strane.</p>
+      </Q>
+      <Q q="Četiri faktora">
+        <p>Četiri stvari koje najviše odlučuju košarkaški meč (po analitičaru Dinu Oliveru):</p>
+        <ol className="steps">
+          <li><strong>Šut (eFG%)</strong>: procenat šuta gde trojka vredi 1,5 puta više od dvojke. Najvažniji faktor.</li>
+          <li><strong>Izgubljene lopte (TOV%)</strong>: koliko napada se završi izgubljenom loptom, bez šuta.</li>
+          <li><strong>Skok u napadu (ORB%)</strong>: koliko svojih promašaja tim vrati skokom i dobije novi napad.</li>
+          <li><strong>Slobodna bacanja (FTr)</strong>: koliko često tim stiže na liniju u odnosu na broj šuteva.</li>
+        </ol>
+        <p>Model gleda svaki faktor u napadu i u odbrani (šta tim dozvoljava protivniku) i poredi dva tima.</p>
+      </Q>
+      <Q q="Efikasnost po posedu">
+        <p>Koliko poena tim postigne, odnosno primi, na 100 napada. Ovako se porede timovi koji igraju brzo i sporo: brz tim daje više poena i zato što ima više napada, a ne samo zato što je bolji.</p>
+      </Q>
+      <Q q="Regresija ka sredini">
+        <p>Neobično dobri ili loši rezultati se vremenom vraćaju ka proseku, jer je deo njih bio sreća. Primer: tim koji inače pogađa 36% trojki, a u poslednja tri meča pogađa 45%, verovatno neće nastaviti tako. Očekuje se da se vrati blizu 36%.</p>
+        <p>Model to koristi na tri mesta:</p>
+        <ul className="plain">
+          <li><strong>Šut:</strong> kad je tim nedavno šutirao trojke mnogo iznad ili ispod svog proseka, to se ne uzima kao prava forma.</li>
+          <li><strong>Između sezona:</strong> Elo i Glicko rejting se pomere 25% nazad ka proseku, jer se timovi preko leta menjaju.</li>
+          <li><strong>Igrači:</strong> procena igrača sa malo odigranih minuta se drži bliže proseku, dok se ne skupi dovoljno podataka.</li>
+        </ul>
+      </Q>
+      <Q q="Kvota, EV i „treba za nulu”">
+        <p><strong>Decimalna kvota</strong> kaže koliko se vraća za 1 dinar: kvota 1,80 vraća 1,80 din. <strong>„Treba za nulu”</strong> je 1 ÷ kvota: na kvoti 1,80 moraš pogoditi bar 55,6% da ne bi bio u minusu. <strong>EV</strong> (očekivana vrednost) je naša šansa × kvota − 1: kod šanse 60% i kvote 1,80 to je +8%, što znači da se dugoročno očekuje 8 din dobitka na svakih 100 uloženih.</p>
+      </Q>
+      <Q q="CLV">
+        <p>Razlika između kvote koju smo uzeli i završne kvote pred meč. Ako smo uzeli 2,10, a završna je 1,95, kvota se pomerila ka našem izboru i CLV je pozitivan. Dugoročno, pozitivan CLV je najbolji znak da analiza vidi nešto pre kladionice.</p>
+      </Q>
+      <Q q="Log loss i Brier">
+        <p>Mere koliko su procenti tačni, a ne samo da li je pobednik pogođen. Ko kaže 90% i pogreši, kažnjava se mnogo više od onoga ko kaže 55% i pogreši. Manje je bolje.</p>
+      </Q>
     </section>
   );
 }

@@ -63,6 +63,26 @@ function Stake({ g, proven }: { g: GameView; proven: boolean }) {
   return <p className="stake"><span>Predlog uloga: <strong>{int(s)} din</strong></span><span className="muted small">dobitak +{int(Math.round(s * (odd - 1)))} din{proven ? '' : ', papirno'}</span></p>;
 }
 
+/** Preporuka da li igrati meč, vidljiva pre, tokom i posle meča. */
+function AdviceLine({ g, proven }: { g: GameView; proven: boolean }) {
+  const a = g.advice;
+  if (!a) return null;
+  const t = a.side === 'home' ? g.home : g.away;
+  const won = g.result ? (a.side === 'home') === (g.result.hs > g.result.as) : null;
+  return (
+    <div className={`advice ${a.play ? 'yes' : 'no'}`}>
+      <p>
+        <strong>{a.play ? `Preporučujem da igraš: ${t.name}` : 'Ne preporučujem da igraš'}</strong>
+        {a.play && a.odds ? <> na kvotu {odds(a.odds)}</> : null}
+        {a.play && !proven && <span className="muted small"> (papirno)</span>}
+        {won !== null && a.play && <span className={`verdict ${won ? 'hit' : 'miss'}`}> {won ? 'Preporuka prošla' : 'Preporuka pala'}</span>}
+        {won !== null && !a.play && <span className="muted small"> {won ? '(izbor je ipak pobedio)' : '(izbor je izgubio)'}</span>}
+      </p>
+      <p className="muted small">{a.reason}</p>
+    </div>
+  );
+}
+
 /** Objašnjenje zvezdice; otvara se prelaskom miša, fokusom ili dodirom. */
 function StarTip({ g }: { g: GameView }) {
   const [pinned, setPinned] = useState(false);
@@ -118,7 +138,7 @@ export function GameCard({ g, past, proven }: { g: GameView; past: BetStat | nul
         <span>{started ? 'Izbor pre meča' : 'Izbor'}: <strong>{pick.name}</strong>, {pct(g.confidence)}{g.initial.pick !== g.pick ? ` (prvo: ${(g.initial.pick === 'home' ? g.home : g.away).abbr})` : ''}</span>
         <span className="pick-end">{started && <span className="muted">zaključano</span>}<Chip c={g.confidence} /></span>
       </p>
-      {!g.odds && !started && <p className="muted small">Kvote još nisu objavljene.</p>}
+      <AdviceLine g={g} proven={proven} />
       {g.highlight && !started && past && past.n > 0 && (
         <p className="small muted">Ovakvi izbori u simulaciji: {pct(past.pct, 1)} pogođeno od {int(past.n)}, povraćaj {signed(past.roi * 100)}%.</p>
       )}

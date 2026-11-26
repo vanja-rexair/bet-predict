@@ -3,7 +3,7 @@ import path from 'node:path';
 import type { DB } from '../db.ts';
 import { setMeta, tx } from '../db.ts';
 import { DATA_DIR, FIRST_BACKTEST_SEASON, MODEL_VERSION, currentSeason } from '../config.ts';
-import { noVig, ev, isHighlight, kelly } from '../market.ts';
+import { noVig, ev, flat, isHighlight, kelly } from '../market.ts';
 import { evaluate, sigmoid } from '../ml/metrics.ts';
 import { buildHistory, type League, type Row } from '../model/features.ts';
 import { BASE_NAMES, applyStack, importance, influence, predictBase, trainBase, trainStack, type BaseModels, type BasePred, type Stack, type StackRow } from '../model/ensemble.ts';
@@ -22,7 +22,7 @@ export interface ModelFile {
 }
 export interface BtRow { row: Row; stacked: number; final: number; mkt: number | null; pred: BasePred }
 export interface BacktestFile {
-  stats: Omit<Stats, 'live' | 'liveValue' | 'generatedAt' | 'betProven' | 'liveHighlight'>; history: HistoryRow[]; misses: Miss[]; teamHits: [number, { hit: number; picks: number }][];
+  stats: Omit<Stats, 'live' | 'liveValue' | 'generatedAt' | 'betProven' | 'liveHighlight' | 'liveAdvice'>; history: HistoryRow[]; misses: Miss[]; teamHits: [number, { hit: number; picks: number }][];
 }
 
 const blockOf = (r: Row) => `${r.g.season}-${r.g.date.slice(0, 7)}`;
@@ -130,8 +130,13 @@ export function train(db: DB): TrainResult {
 function report(how: Stats['how'], bt: BtRow[], odds: Map<number, any>, names: Map<number, string>, lessons: Lessons, segGate: Gate, teamGate: Gate,
   base: BaseModels, trainedAt: string, trainedOn: number): BacktestFile {
   const cur = currentSeason();
-  const rec = (label: string, list: BtRow[]) => record(label, list.map((b) => b.final), list.map((b) => b.row.y),
+  const rec = (label: string, list: BtRow[]): RecordRow => ({ flat: flat(list.map(bet)), ...recBase(label, list) });
+  const recBase = (label: string, list: BtRow[]) => record(label, list.map((b) => b.final), list.map((b) => b.row.y),
     list.filter((b) => b.mkt !== null).map((b) => ({ p: b.mkt!, y: b.row.y })));
+  const bet = (b: BtRow) => {
+    const o = odds.get(b.row.g.id);
+    return { hit: pickHit(b.final, b.row.y), odds: o && b.mkt !== null ? (b.final >= 0.5 ? o.mlh_close : o.mla_close) as number : null };
+  };
   const seasons: RecordRow[] = [];
   for (let s = FIRST_BACKTEST_SEASON; s <= cur; s++) {
     const l = bt.filter((b) => b.row.g.season === s);
@@ -192,6 +197,12 @@ function report(how: Stats['how'], bt: BtRow[], odds: Map<number, any>, names: M
       }
     }
   }
+  const all = bt.map(bet);
+  const byOdds = ([[1, 1.06], [1.06, 1.18], [1.18, 1.3], [1.3, 1.5], [1.5, 1.8], [1.8, 2.2], [2.2, 99]] as const).map(([lo, hi]) => ({
+    label: lo === 1 ? 'ispod 1,06' : hi === 99 ? '2,20 i više' : `${lo.toFixed(2)}–${hi.toFixed(2)}`.replaceAll('.', ','),
+    ...flat(all.filter((r) => r.odds !== null && r.odds >= lo && (r.odds < hi || (hi === 1.18 && r.odds <= 1.18)) && !(lo === 1.18 && r.odds <= 1.18))),
+  }));
+
   // Predloženi ulozi: koliko bi donelo svakih 100 dinara uloženih po Kelly predlogu.
   let kn = 0, kh = 0, kIn = 0, kOut = 0;
   for (const b of bt) {
@@ -245,7 +256,7 @@ function report(how: Stats['how'], bt: BtRow[], odds: Map<number, any>, names: M
       buckets, calibration, months: [...monthMap].map(([month, m]) => ({ month, ...m, pct: m.hit / m.total })), lessons: lessons.list(),
       lessonGate: segGate.view(), teamGate: teamGate.view(),
       missCategories: [...cats].map(([category, c]) => ({ category, n: c.n, share: c.n / missTotal, variance: c.variance / c.n })).sort((a, b) => b.n - a.n),
-      missTotal, varianceShare: missTotal ? variance / missTotal : 0, value: { n: vn, won: vw, roi: vn ? profit / vn : 0 }, byConfidence, highlight, staking, how, importance: importance(base),
+      missTotal, varianceShare: missTotal ? variance / missTotal : 0, value: { n: vn, won: vw, roi: vn ? profit / vn : 0 }, byOdds, byConfidence, highlight, staking, how, importance: importance(base),
       totals: { mae: mae((b) => b.pred.total), marketMae: tot.length ? mae((b) => odds.get(b.row.g.id).total_close) : null, n: tot.length },
     },
     history: thisSeason.map((b) => {

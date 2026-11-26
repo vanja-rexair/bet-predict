@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import type { HistoryRow } from '../../../engine/src/types.ts';
+import { flat } from '../../../engine/src/market.ts';
 import { useData } from '../api.ts';
 import { odds, pct, shortDate } from '../format.ts';
 import { Empty, Loading, RecordStrip, Segmented, Verdict } from '../components/ui.tsx';
@@ -26,13 +27,13 @@ export function History() {
         <Segmented label="Izvor" value={src} onChange={setSrc} options={[['all', 'Sve'], ['live', 'Uživo'], ['test', 'Simulacija']]} />
         <Segmented label="Ishod" value={res} onChange={setRes} options={[['all', 'Svi'], ['hit', 'Pogođeni'], ['miss', 'Promašeni']]} />
         <label className="field">Najmanja sigurnost
-          <select value={min} onChange={(e) => setMin(Number(e.target.value))}>{[50, 55, 60, 65, 70, 75, 80, 85].map((v) => <option key={v} value={v}>{v}%</option>)}</select>
+          <select value={min} onChange={(e) => setMin(Number(e.target.value))}>{[50, 55, 60, 65, 70, 75, 80, 85, 90].map((v) => <option key={v} value={v}>{v}%</option>)}</select>
         </label>
         <label className="field">Tim
           <select value={team} onChange={(e) => setTeam(e.target.value)}><option value="">Svi</option>{teams.map((t) => <option key={t}>{t}</option>)}</select>
         </label>
       </div>
-      <RecordStrip r={{ label: '', total: base.length, hit, miss: base.length - hit, pct: base.length ? hit / base.length : 0, market: null, logLoss: 0, brier: 0 }} />
+      <RecordStrip r={{ flat: flat(base), label: '', total: base.length, hit, miss: base.length - hit, pct: base.length ? hit / base.length : 0, market: null, logLoss: 0, brier: 0 }} />
       {!rows.length ? <Empty>Nema mečeva za izabrane filtere.</Empty> : (
         <div className="table-wrap">
           <table>

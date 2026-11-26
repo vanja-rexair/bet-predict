@@ -17,12 +17,12 @@ export function Performance() {
       <Section title="Zapis po sezonama" hint="Simulacija ide redom kroz vreme: pre svakog meča model zna samo ono što se znalo tada. Jedino sastavi dolaze iz odigranog meča, pa je stvarni učinak uživo obično malo niži.">
         <div className="table-wrap">
           <table>
-            <thead><tr><th>Period</th><th className="r">Ukupno</th><th className="r">Pogođeni</th><th className="r">Promašeni</th><th className="r">Uspešnost</th><th className="r">Kladionica</th><th className="r">Log loss</th><th className="r">Brier</th></tr></thead>
+            <thead><tr><th>Period</th><th className="r">Ukupno</th><th className="r">Pogođeni</th><th className="r">Promašeni</th><th className="r">Uspešnost</th><th className="r">Prosečna kvota</th><th className="r">Povraćaj</th><th className="r">Kladionica</th><th className="r">Log loss</th><th className="r">Brier</th></tr></thead>
             <tbody>
               {rows.map((r) => (
                 <tr key={r.label}>
                   <th scope="row">{r.label}</th><td className="r">{int(r.total)}</td><td className="r">{int(r.hit)}</td><td className="r">{int(r.miss)}</td>
-                  <td className="r"><strong>{r.total ? pct(r.pct, 1) : '–'}</strong></td><td className="r">{r.market === null ? '–' : pct(r.market, 1)}</td>
+                  <td className="r"><strong>{r.total ? pct(r.pct, 1) : '–'}</strong></td><td className="r">{r.flat?.n ? num(r.flat.odds, 2) : '–'}</td><td className="r">{r.flat?.n ? `${signed(r.flat.roi * 100)}%` : '–'}</td><td className="r">{r.market === null ? '–' : pct(r.market, 1)}</td>
                   <td className="r">{r.total ? num(r.logLoss, 3) : '–'}</td><td className="r">{r.total ? num(r.brier, 3) : '–'}</td>
                 </tr>
               ))}
@@ -67,6 +67,24 @@ export function Performance() {
           </tbody>
         </table></div>
       </Section>
+      {s.byOdds && (
+        <Section title="Isplativost po visini kvote" hint="Naši izbori od 2018/19, isti ulog na svaki, po završnoj kvoti.">
+          <div className="table-wrap"><table>
+            <thead><tr><th>Kvota</th><th className="r">Mečeva</th><th className="r">Pogođeno</th><th className="r">Prosečna kvota</th><th className="r">Za nulu treba</th><th className="r">Povraćaj</th></tr></thead>
+            <tbody>{s.byOdds.filter((b) => b.n > 0).map((b) => <tr key={b.label}><th scope="row">{b.label}</th><td className="r">{int(b.n)}</td><td className="r">{pct(b.hit / b.n, 1)}</td><td className="r">{num(b.odds, 2)}</td><td className="r">{pct(b.hit / b.n / (1 + b.roi), 1)}</td><td className="r">{signed(b.roi * 100)}%</td></tr>)}</tbody>
+          </table></div>
+        </Section>
+      )}
+      {s.liveAdvice && (
+        <Section title="Moje preporuke uživo" hint="Na svakoj kartici piše „Preporučujem da igraš” ili „Ne preporučujem da igraš”. Preporuka se zaključava na početku meča i ovde se meri. Pravilo: naša šansa bar 40% i bar 5% bolja od kvote. Isto pravilo u simulaciji od 2018/19 je bilo u minusu, pa su preporuke za sada papirne.">
+          <dl className="facts wide">
+            <div><dt>Preporučeno</dt><dd>{int(s.liveAdvice.play.n)}{s.liveAdvice.play.n ? `, pogođeno ${int(s.liveAdvice.play.hit)} (${pct(s.liveAdvice.play.pct, 1)})` : ''}</dd></div>
+            <div><dt>Prosečna kvota</dt><dd>{s.liveAdvice.play.n ? num(s.liveAdvice.play.odds, 2) : '–'}</dd></div>
+            <div><dt>Povraćaj preporuka</dt><dd>{s.liveAdvice.play.n ? `${signed(s.liveAdvice.play.roi * 100)}%` : '–'}</dd></div>
+            <div><dt>Nije preporučeno</dt><dd>{int(s.liveAdvice.skip.n)}{s.liveAdvice.skip.n ? `, izbor ipak pobedio ${int(s.liveAdvice.skip.pickHit)}` : ''}</dd></div>
+          </dl>
+        </Section>
+      )}
       <Section title="Papirne opklade uživo" hint="Prate se automatski, bez novca. Tek plus na bar 200 opklada, uz bolju kvotu od završne (CLV), znači da postoji prednost.">
         <dl className="facts wide">
           <div><dt>★ Istaknuti izbori</dt><dd>{int(s.liveHighlight.n)}{s.liveHighlight.n ? `, povraćaj ${signed(s.liveHighlight.roi * 100)}%` : ''}</dd></div>

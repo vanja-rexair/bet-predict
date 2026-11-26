@@ -44,6 +44,9 @@ main { max-width: 1120px; margin: 0 auto; padding: 20px 20px 60px; }
 .record div:first-child { border-left: 0; padding-left: 0; }
 .record dt { font-size: 0.85rem; color: var(--ink-2); }
 .record dd { font-size: 1.75rem; line-height: 1.2; font-weight: 650; }
+.avg-odd { display: block; font-size: 0.85rem; font-weight: 500; color: var(--ink-2); line-height: 1.4; }
+.worth { display: flex; flex-wrap: wrap; gap: 2px 22px; font-size: 0.92rem; margin-top: 8px; color: var(--ink-2); }
+.worth strong { color: var(--ink); }
 .hint { color: var(--ink-3); font-size: 0.9rem; max-width: 75ch; }
 .note { background: var(--accent-soft); border-radius: 8px; padding: 10px 14px; font-size: 0.92rem; max-width: 85ch; }
 .empty { padding: 40px 0; color: var(--ink-2); text-align: center; }
@@ -205,3 +208,7 @@ details summary { cursor: pointer; color: var(--accent); font-weight: 600; font-
   .bars li { grid-template-columns: 1fr auto; }
   .bars-track { grid-column: 1 / -1; grid-row: 2; }
 }
+.advice { border-top: 1px solid var(--ring); padding-top: 8px; font-size: 0.92rem; display: grid; gap: 2px; }
+.advice.yes strong { color: var(--good); }
+.advice.no strong { color: var(--ink-2); }
+.faq-list h2.faq-sub { margin-top: 32px; }

@@ -2,9 +2,10 @@ import fs from 'node:fs';
 import path from 'node:path';
 import type { DB } from '../db.ts';
 import { PUBLIC_DIR, addDays, currentSeason, etDate } from '../config.ts';
+import { advise, flat } from '../market.ts';
 import { TEAMS } from '../teams.ts';
 import type { League } from '../model/features.ts';
-import type { GameEvent, GameView, HistoryRow, Miss, RecentGame, Stats, TeamRow } from '../types.ts';
+import type { Advice, GameEvent, GameView, HistoryRow, Miss, RecentGame, Stats, TeamRow } from '../types.ts';
 import { record, type BacktestFile } from './train.ts';
 
 type Stored = Omit<GameView, 'events'> & { pre?: unknown };
@@ -17,6 +18,10 @@ function write(name: string, data: unknown): void {
   fs.renameSync(f + '.tmp', f);
 }
 
+/** Mečevi zapisani pre uvođenja preporuke dobijaju je po istom pravilu iz podataka pre početka. */
+const adviceOf = (s: Stored): Advice => s.advice ?? advise(s.pHome, s.odds ? { home: s.odds.home, away: s.odds.away } : null);
+const adviceWon = (s: Stored, a: Advice) => (a.side === 'home') === (s.result!.hs > s.result!.as);
+
 export function exportAll(db: DB, bt: BacktestFile, lg: League, live: Stored[]): void {
   const generatedAt = new Date().toISOString();
   const today = etDate(), cur = currentSeason();
@@ -26,7 +31,7 @@ export function exportAll(db: DB, bt: BacktestFile, lg: League, live: Stored[]):
 
   const games: GameView[] = live.filter((s) => s.date >= addDays(today, -1)).map((s) => {
     const { pre: _pre, ...v } = s;
-    return { ...v, events: (byGame.get(s.id) ?? []).slice(0, 40) };
+    return { ...v, advice: adviceOf(s), events: (byGame.get(s.id) ?? []).slice(0, 40) };
   }).sort((a, b) => (a.start < b.start ? -1 : a.start > b.start ? 1 : a.id - b.id));
   write('events.json', { generatedAt, events: events.slice(0, 80) });
 
@@ -42,12 +47,20 @@ export function exportAll(db: DB, bt: BacktestFile, lg: League, live: Stored[]):
   const avgClv = clv.length ? clv.reduce((s, c) => s + c.clv!, 0) / clv.length : null;
   const betProven = bets.length >= 200 && roi > 0 && (avgClv ?? 0) > 0;
   const stats: Stats = {
-    ...bt.stats, generatedAt, live: liveRec, betProven,
+    ...bt.stats, generatedAt, live: { ...liveRec, flat: flat(done.map((s) => ({ hit: s.result!.hit, odds: s.closeOddsPick }))) }, betProven,
     liveHighlight: ((l) => {
       const h = l.filter((s) => s.result!.hit), sum = (q: Stored[]) => q.reduce((t, s) => t + s.closeOddsPick!, 0);
       return { n: l.length, hit: h.length, pct: l.length ? h.length / l.length : 0, odds: l.length ? sum(l) / l.length : 0, roi: l.length ? sum(h) / l.length - 1 : 0 };
     })(done.filter((s) => s.highlight && s.closeOddsPick)),
     liveValue: { n: bets.length, won: won.length, roi, clv: avgClv, clvN: clv.length },
+    liveAdvice: ((l) => {
+      const play = l.filter((s) => s.a.play && s.a.odds), skip = l.filter((s) => !s.a.play);
+      const w = play.filter((s) => adviceWon(s, s.a)), sum = (q: typeof l) => q.reduce((t, s) => t + s.a.odds!, 0);
+      return {
+        play: { n: play.length, hit: w.length, pct: play.length ? w.length / play.length : 0, odds: play.length ? sum(play) / play.length : 0, roi: play.length ? sum(w) / play.length - 1 : 0 },
+        skip: { n: skip.length, pickHit: skip.filter((s) => s.result!.hit).length },
+      };
+    })(done.map((s) => ({ ...s, a: adviceOf(s) }))),
   };
   write('today.json', { generatedAt, today, games, betProven });
   write('stats.json', stats);
@@ -77,14 +90,14 @@ export function exportAll(db: DB, bt: BacktestFile, lg: League, live: Stored[]):
   for (const h of bt.history) {
     if (h.date < from) continue;
     recent.set(h.id, { id: h.id, date: h.date, start: startOf.get(h.id) ?? h.date, home: byAbbr.get(h.home)!, away: byAbbr.get(h.away)!, hs: h.hs, as: h.as, src: 'test',
-      initial: { p: h.p, pick: h.pick, ts: null }, final: null, hit: h.hit, postmortem: miss.get(h.id)?.pm ?? null });
+      initial: { p: h.p, pick: h.pick, ts: null }, final: null, hit: h.hit, postmortem: miss.get(h.id)?.pm ?? null, odds: h.odds });
   }
   for (const s of done) {
     if (s.date < from) continue;
     const init = s.initial ?? { p: s.pHome, pick: s.pick, ts: s.created };
     const r = s.result!;
     recent.set(s.id, { id: s.id, date: s.date, start: s.start, home: s.home, away: s.away, hs: r.hs, as: r.as, src: 'live',
-      initial: init, final: { p: s.pHome, pick: s.pick }, hit: (r.hs > r.as) === (init.pick === 'home'), postmortem: s.postmortem });
+      initial: init, final: { p: s.pHome, pick: s.pick }, hit: (r.hs > r.as) === (init.pick === 'home'), postmortem: s.postmortem, odds: s.odds ? s.odds[init.pick] : null, advice: adviceOf(s) });
   }
   write('recent.json', { generatedAt, rows: [...recent.values()].sort((a, b) => (a.start < b.start ? 1 : a.start > b.start ? -1 : b.id - a.id)) });
 

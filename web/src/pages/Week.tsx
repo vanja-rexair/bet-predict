@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import type { RecentGame } from '../../../engine/src/types.ts';
+import { flat } from '../../../engine/src/market.ts';
 import { useData } from '../api.ts';
 import { localDay, longDay } from '../format.ts';
 import { PastCard } from '../components/PastCard.tsx';
@@ -24,7 +25,7 @@ export function Week() {
   return (
     <>
       <div className="record-wrap">
-        <RecordStrip r={{ label: '', total: rows.length, hit, miss: rows.length - hit, pct: rows.length ? hit / rows.length : 0, market: null, logLoss: 0, brier: 0 }} />
+        <RecordStrip r={{ flat: flat(rows), label: '', total: rows.length, hit, miss: rows.length - hit, pct: rows.length ? hit / rows.length : 0, market: null, logLoss: 0, brier: 0 }} />
         <p className="hint">Boja se određuje prema prvoj prognozi, koja se posle ne menja.{sim && ' Kartice sa oznakom Simulacija su mečevi pre puštanja aplikacije: model ih je predvideo naknadno, samo iz ranijih podataka.'}</p>
         <Segmented label="Ishod" value={res} onChange={setRes} options={[['all', 'Svi'], ['hit', 'Pogođeni'], ['miss', 'Promašeni']]} />
       </div>
