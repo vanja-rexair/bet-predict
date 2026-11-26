@@ -31,6 +31,8 @@ export async function fetchData<T>(name: string, signal?: AbortSignal): Promise<
 
 /** Traži od servisa proveru odmah. Na statičnom hostingu ne postoji, pa samo vraća false. */
 export async function refreshServer(): Promise<boolean> {
+  // raw.githubusercontent.com i GitHub Pages ne primaju POST (vraćaju 403), tamo se podaci samo ponovo učitaju.
+  if (/^https?:\/\/[^/]*(githubusercontent\.com|github\.io)(\/|$)/i.test(getServer()) || (!getServer() && /github\.io$/i.test(location.hostname))) return false;
   try {
     const r = await fetch(`${base()}/api/refresh`, { method: 'POST' });
     return r.ok;
